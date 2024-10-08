@@ -62,7 +62,14 @@ class SegmetationMap1to3layer(object):
         return three_channel_img    
 
 
-image_transforms = transforms.Compose([
+image_transforms_train = transforms.Compose([
+    transforms.Resize((ip_dimn, ip_dimn)),
+    transforms.ColorJitter(brightness=.5, contrast=.5, hue=.3),
+    transforms.RandomGrayscale(p=0.1),
+    transforms.ToTensor()
+])
+
+image_transforms_tst = transforms.Compose([
     transforms.Resize((ip_dimn, ip_dimn)),
     transforms.ToTensor()
 ])
@@ -77,14 +84,14 @@ mask_transforms = transforms.Compose([
 train_dataset = torchvision.datasets.OxfordIIITPet(root='../data/',
                                      split= 'trainval',
                                      target_types = 'segmentation',
-                                     transform=image_transforms,
+                                     transform=image_transforms_train,
                                      target_transform = mask_transforms,
                                      download=True)
 
 test_dataset = torchvision.datasets.OxfordIIITPet(root='../data/',
                                      split= 'test',
                                      target_types = 'segmentation',
-                                     transform=image_transforms,
+                                     transform=image_transforms_tst,
                                      target_transform = mask_transforms,
                                      download=True)
 
