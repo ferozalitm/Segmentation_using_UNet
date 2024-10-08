@@ -37,19 +37,12 @@ import os
 import random
 from torchvision.utils import save_image
 from sklearn.preprocessing import StandardScaler
-sc = StandardScaler()
-from sklearn.decomposition import PCA
 import matplotlib.cm as cm
-from PIL import Image
 
-no_classes = 3
-colors = cm.rainbow(np.linspace(0, 1, no_classes))
-
-# Reproducibility
+# For reproducibility
 torch.manual_seed(0)
 np.random.seed(0)
 random.seed(0)
-
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
@@ -65,10 +58,8 @@ sample_dir = './Segmentation_OxfordIIITPet_results_maskCrop_3lyrOP_Adamlre-5_bS8
 if not os.path.exists(sample_dir):
     os.makedirs(sample_dir)
 
-    
+
 class SegmetationMap1to3layer(object):
-    """
-    """
 
     def __init__(self, thresholds):
         self.thresholds = thresholds
@@ -79,18 +70,14 @@ class SegmetationMap1to3layer(object):
         img2 = np.array(sample[0])
         img2 = sample[0]
 
-
         # Initialize the 3-channel output
         three_channel_img = torch.zeros((3, img2.shape[0], img2.shape[1])).type(torch.float32)
 
-        # breakpoint()
         # Apply thresholds to create each channel
         for i in range(3):
             three_channel_img[i, :, :] = (img2 == self.thresholds[i]).type(torch.float32)
         
-        return three_channel_img
-
-    
+        return three_channel_img    
 
 
 image_transforms = transforms.Compose([
@@ -105,14 +92,12 @@ mask_transforms = transforms.Compose([
     SegmetationMap1to3layer((0.00392156875, 0.0078431375, 0.01176470625))
 ])
 
-
 train_dataset = torchvision.datasets.OxfordIIITPet(root='../data/',
                                      split= 'trainval',
                                      target_types = 'segmentation',
                                      transform=image_transforms,
                                      target_transform = mask_transforms,
                                      download=True)
-
 
 test_dataset = torchvision.datasets.OxfordIIITPet(root='../data/',
                                      split= 'test',
@@ -121,17 +106,13 @@ test_dataset = torchvision.datasets.OxfordIIITPet(root='../data/',
                                      target_transform = mask_transforms,
                                      download=True)
 
-
 train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                            batch_size=batch_size, 
                                            shuffle=False)
 
-
 test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
                                            batch_size=batch_size, 
                                            shuffle=False)
-
-# breakpoint()
 
 # Finding image size and channel depth
 # train_dataset[0][0].shape  -> torch.Size([3, 512, 512])
@@ -158,22 +139,18 @@ def init_weights_Kaiming_He(m):
         torch.nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
         torch.nn.init.constant_(m.bias, 0.0)
 
-
-
 # Build a fully connected layer and forward pass
 class SemanticSegmentation(nn.Module):
     def __init__(self, ip_image_size, no_classes):
         super().__init__()
 
         # Encoder layers
-        # breakpoint()
         self.layer1a_e = nn.Sequential(
             nn.Conv2d(in_channels = 3, out_channels = 64, kernel_size = 3, stride=1),
             nn.ReLU(),
             nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = 3, stride=1),
             nn.ReLU())        
         self.layer1b_e = nn.MaxPool2d(kernel_size = 2, stride=2)
-
         self.conv_op_image_size_encoder_layer1a = (ip_image_size - 3)//1 + 1        # Conv -> (24X24)
         self.conv_op_image_size_encoder_layer1a = (self.conv_op_image_size_encoder_layer1a - 3)//1 + 1        # Conv -> (24X24)
         self.conv_op_image_size_encoder_layer1b = (self.conv_op_image_size_encoder_layer1a - 2)//2 + 1        # Conv -> (11X11)
@@ -184,7 +161,6 @@ class SemanticSegmentation(nn.Module):
             nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, stride=1),
             nn.ReLU())
         self.layer2b_e = nn.MaxPool2d(kernel_size = 2, stride=2)
-
         self.conv_op_image_size_encoder_layer2a = (self.conv_op_image_size_encoder_layer1b - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_encoder_layer2a = (self.conv_op_image_size_encoder_layer2a - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_encoder_layer2b = (self.conv_op_image_size_encoder_layer2a - 2)//2 + 1        # Conv -> (3X3)
@@ -195,7 +171,6 @@ class SemanticSegmentation(nn.Module):
             nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = 3, stride=1),
             nn.ReLU())
         self.layer3b_e = nn.MaxPool2d(kernel_size = 2, stride=2)
-
         self.conv_op_image_size_encoder_layer3a = (self.conv_op_image_size_encoder_layer2b - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_encoder_layer3a = (self.conv_op_image_size_encoder_layer3a - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_encoder_layer3b = (self.conv_op_image_size_encoder_layer3a - 2)//2 + 1        # Conv -> (3X3)
@@ -206,7 +181,6 @@ class SemanticSegmentation(nn.Module):
             nn.Conv2d(in_channels = 512, out_channels = 512, kernel_size = 3, stride=1),
             nn.ReLU())
         self.layer4b_e = nn.MaxPool2d(kernel_size = 2, stride=2)
-
         self.conv_op_image_size_encoder_layer4a = (self.conv_op_image_size_encoder_layer3b - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_encoder_layer4a = (self.conv_op_image_size_encoder_layer4a - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_encoder_layer4b = (self.conv_op_image_size_encoder_layer4a - 2)//2 + 1        # Conv -> (3X3)
@@ -216,7 +190,6 @@ class SemanticSegmentation(nn.Module):
             nn.ReLU(),
             nn.Conv2d(in_channels = 1024, out_channels = 1024, kernel_size = 3, stride=1),
             nn.ReLU())
-
         self.conv_op_image_size_encoder_layer5a = (self.conv_op_image_size_encoder_layer4b - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_encoder_layer5a = (self.conv_op_image_size_encoder_layer5a - 3)//1 + 1        # Conv -> (7X7)
 
@@ -233,7 +206,6 @@ class SemanticSegmentation(nn.Module):
             nn.ReLU())
         self.layer4b_d = nn.Sequential(nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
                                       nn.Conv2d(in_channels = 512, out_channels = 256, kernel_size = 3, padding=1, stride=1))
-
         self.conv_op_image_size_decoder_layer4a = (self.conv_op_image_size_decoder_layer5 - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_decoder_layer4a = (self.conv_op_image_size_decoder_layer4a - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_decoder_layer4b = self.conv_op_image_size_decoder_layer4a*2  
@@ -245,7 +217,6 @@ class SemanticSegmentation(nn.Module):
             nn.ReLU())
         self.layer3b_d = nn.Sequential(nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
                                       nn.Conv2d(in_channels = 256, out_channels = 128, kernel_size = 3, padding=1, stride=1))
-
         self.conv_op_image_size_decoder_layer3a = (self.conv_op_image_size_decoder_layer4b - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_decoder_layer3a = (self.conv_op_image_size_decoder_layer3a - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_decoder_layer3b = self.conv_op_image_size_decoder_layer3a*2  
@@ -257,7 +228,6 @@ class SemanticSegmentation(nn.Module):
             nn.ReLU())
         self.layer2b_d = nn.Sequential(nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
                                       nn.Conv2d(in_channels = 128, out_channels = 64, kernel_size = 3, padding=1, stride=1))
-
         self.conv_op_image_size_decoder_layer2a = (self.conv_op_image_size_decoder_layer3b - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_decoder_layer2a = (self.conv_op_image_size_decoder_layer2a - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_decoder_layer2b = self.conv_op_image_size_decoder_layer2a*2  
@@ -268,7 +238,6 @@ class SemanticSegmentation(nn.Module):
             nn.ReLU(),
             nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = 3, stride=1),
             nn.ReLU())
-
         self.conv_op_image_size_decoder_layer1a = (self.conv_op_image_size_decoder_layer2b - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_decoder_layer1a = (self.conv_op_image_size_decoder_layer1a - 3)//1 + 1        # Conv -> (7X7)
 
@@ -311,20 +280,15 @@ class SemanticSegmentation(nn.Module):
         
 
 # Build model.
+no_classes = 3
 model = SemanticSegmentation(ip_image_size, no_classes).to(device)
 model.apply(init_weights_Kaiming_He)
-breakpoint()
 model.layer1b_d.apply(init_weights_xavier)
-breakpoint()
-
-# breakpoint()
 
 # Build optimizer.
 learning_rate = 0.00001
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  
 # optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
-
-# breakpoint()
 
 # For updating learning rate
 def update_lr(optimizer, lr):    
@@ -340,26 +304,18 @@ epoch_all = []
 loss_test_all = []
 loss_train_all = []
 
-curr_lr = learning_rate
 for epoch in range(no_epochs):
 
-  # Training
+  # Training for each epoch
   batch_idx = 0
-  total_loss_train = 0
-    
+  total_loss_train = 0    
 
   for batch_idx, (images, masks) in enumerate(train_loader):
-
     images = images.to(device)
     masks = masks.to(device)
 
-    # breakpoint()
-    # print(torch.unique(masks1))
-    # breakpoint()
-
     # Forward pass.
     pred_segmnt = model(images)
-    # breakpoint()
     
     if batch_idx < 10:
         mask_pred_segmnt_concate_RGB = torch.cat((masks, pred_segmnt.detach()), 2)
@@ -367,7 +323,6 @@ for epoch in range(no_epochs):
         image_mask_pred_segmnt_concate_RGB = torch.cat((transforms.functional.resize(img=images, size = mask_dimn), mask_pred_segmnt_concate_RGB), 2)
         save_image(image_mask_pred_segmnt_concate_RGB, os.path.join(sample_dir, f'train_image_mask_pred_segmnt_concate-{epoch}-{batch_idx}.png'))
 
-    # breakpoint()
     # Compute loss.
     loss = criterion(pred_segmnt, masks)
 
@@ -386,24 +341,11 @@ for epoch in range(no_epochs):
     total_loss_train += loss.item()
 
     if epoch == 0 and (batch_idx) % 10 == 0:
-    # if (batch_idx+1) % 10 == 0:
       print(f"Train Batch:{batch_idx}/{no_batches_train}, loss: {loss}, total_loss: {total_loss_train}")
-
-
-  # Decay learning rate
-#   if (epoch+1) % 50 == 0:
-#       curr_lr /= 10
-#       update_lr(optimizer, curr_lr)
 
   print(f'Train Epoch:{epoch}, Average Train loss:{total_loss_train/no_batches_train}' )
 
-#   breakpoint()
-
-#   if (epoch % 1 == 0) or (epoch == no_epochs-1):
-    # x_concat = torch.cat([transforms.functional.resize(img=images, interpolation = "bilinear"), pred_segmnt, , dim=3)
-    # save_image(x_concat, os.path.join(sample_dir, 'train_reconst-{}.png'.format(epoch)))
-
-
+    
   # Testing after each epoch
   model.eval()
   with torch.no_grad():
@@ -422,7 +364,6 @@ for epoch in range(no_epochs):
 
       if batch_idx < 10:
         mask_pred_segmnt_concate_RGB = torch.cat((masks, pred_segmnt.detach()), 2)
-        # mask_pred_segmnt_concate_RGB = torch.cat((mask_pred_segmnt_concate, mask_pred_segmnt_concate, mask_pred_segmnt_concate), 1)
         image_mask_pred_segmnt_concate_RGB = torch.cat((transforms.functional.resize(img=images, size = mask_dimn), mask_pred_segmnt_concate_RGB), 2)
         save_image(image_mask_pred_segmnt_concate_RGB, os.path.join(sample_dir, f'test_image_mask_pred_segmnt_concate-{epoch}-{batch_idx}.png'))
 
@@ -434,16 +375,10 @@ for epoch in range(no_epochs):
 
     print(f'Test Epoch:{epoch}, Average Test loss: {total_loss_test/no_batches_tst}')
 
-    # if (epoch % 5 == 0) or (epoch == no_epochs-1):
-    #   x_concat = torch.cat([images.view(-1, 1, 28, 28), pred_segmnt.view(-1, 1, 28, 28)], dim=3)
-    #   save_image(x_concat, os.path.join(sample_dir, 'test_reconst-{}.png'.format(epoch)))
-
-
   # PLotting train and test curves
   epoch_all.append(epoch)
   loss_test_all.append(total_loss_test/no_batches_tst)
   loss_train_all.append(total_loss_train/no_batches_train)
-
   plt.clf()
   plt.plot(epoch_all, loss_train_all, marker = 'o', mec = 'g', label='Average Train loss')
   plt.plot(epoch_all, loss_test_all, marker = 'o', mec = 'r', label='Average Test loss')
