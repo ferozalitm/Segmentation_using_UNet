@@ -1,29 +1,11 @@
-#  1. autoencoder_MNIST_BCE.py
-#     Autoencoder using 3 linear layer, all RelU except last Sigmoid, 9 dimn Latent and BCE on MNIST dataset
-#
-#  2. autoencoder_conv_MNIST_BCE_wMaxPool.py
-#     Autoencoder using 3 layer conv network all RelU except last reconstruction Sigmoid layer, 10 dimn Latent and BCE on reconstruction dataset
-#     Use network of /local/mnt/workspace/feroz/pytorch_tutorial_yunjey/my_pytorch_tutorials/classn_conv2d_CIFAR_v5a_BN_Aug_StepLR.py which gave 82.75(train) and	81.5 test performance on CIFAR10.
-#     (N/w:
-#           Encoder ch: (3->32->64-> fc layer (64X3X3 -> 9))
-#                   img: 28 -> 11 -> 3 -> fc
-#                       
-#           Decoder ch: (3->32->64-> fc layer (64X3X3 -> 9))
-#                   img: fc -> 3 -> 12 -> 28 
-#
-#   3. segmentation_OxfordIIITPet.py
-#
-#   4. segmentation_OxfordIIITPet_maskCrop.py
-#           Resize mask to imag size, then center crop at mask_dimn 388
-#   5. segmentation_OxfordIIITPet_maskCrop_3lyrOP.py
-#           trimap to 3 layer map.
-#   6. segmentation_OxfordIIITPet_maskCrop_3lyrOP_CEloss.py
-#           Use CE instead of BCE since 3 layer OP. 
-#   7. segmentation_OxfordIIITPet_maskCrop_3lyrOP_CEloss_singleLR.py
-#
-#   8. segmentation_OxfordIIITPet_maskCrop_3lyrOP_CEloss_singleLR_initHeXavior.py
-#           Use He initialization instead of Xavier for Linear layers followed by relu.
-#           Keep Xavior initialization for Linear layers followed by Sigmoid (last layer)
+#  segmentation_OxfordIIITPet.py
+#     UNet architecture:
+#           Cobtracting/encoder layers no_of_ch: (3->64->128->256->512->1024)                   
+#           Expansive/decoder layers ch: (1024->512->256->256->128->64->3)
+#           All RelU non-linearity except Sigmoid for output layer
+#           Use CE loss since 3 layer GT map (forground, background, boundary)
+#           Use He initialization for Linear layers followed by relu.
+#           Use Xavior initialization for Linear layers followed by Sigmoid (last layer)
 
 
 import torch
@@ -36,7 +18,6 @@ import torch.nn.functional as F
 import os
 import random
 from torchvision.utils import save_image
-from sklearn.preprocessing import StandardScaler
 import matplotlib.cm as cm
 
 # For reproducibility
@@ -60,12 +41,12 @@ if not os.path.exists(sample_dir):
 
 
 class SegmetationMap1to3layer(object):
+    "Convert trimap to 3 layer map"
 
     def __init__(self, thresholds):
         self.thresholds = thresholds
 
     def __call__(self, sample):
-
         # Convert greyscale PIL Image to array
         img2 = np.array(sample[0])
         img2 = sample[0]
@@ -144,7 +125,7 @@ class SemanticSegmentation(nn.Module):
     def __init__(self, ip_image_size, no_classes):
         super().__init__()
 
-        # Encoder layers
+        # Compressive/encoder layers
         self.layer1a_e = nn.Sequential(
             nn.Conv2d(in_channels = 3, out_channels = 64, kernel_size = 3, stride=1),
             nn.ReLU(),
@@ -194,7 +175,7 @@ class SemanticSegmentation(nn.Module):
         self.conv_op_image_size_encoder_layer5a = (self.conv_op_image_size_encoder_layer5a - 3)//1 + 1        # Conv -> (7X7)
 
 
-        # # Decoder layers
+        # Expansive/decoder layers
         self.layer5_d = nn.Sequential(nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
                                       nn.Conv2d(in_channels = 1024, out_channels = 512, kernel_size = 3, padding=1, stride=1))
         self.conv_op_image_size_decoder_layer5 = self.conv_op_image_size_encoder_layer5a*2                   # Conv -> (7X7)
@@ -232,7 +213,6 @@ class SemanticSegmentation(nn.Module):
         self.conv_op_image_size_decoder_layer2a = (self.conv_op_image_size_decoder_layer2a - 3)//1 + 1        # Conv -> (7X7)
         self.conv_op_image_size_decoder_layer2b = self.conv_op_image_size_decoder_layer2a*2  
 
-
         self.layer1a_d = nn.Sequential(
             nn.Conv2d(in_channels = 128, out_channels = 64, kernel_size = 3, stride=1),
             nn.ReLU(),
@@ -244,12 +224,12 @@ class SemanticSegmentation(nn.Module):
         # Output mask layer 1X1 convolution
         self.layer1b_d = nn.Sequential(
             nn.Conv2d(in_channels = 64, out_channels = no_classes, kernel_size = 1, stride=1))
-            # nn.Sigmoid())
+            # nn.Sigmoid())  # Implicitly in CE loss.
         
 
 
     def forward(self, x):
-        # Encoder
+        # Compressive/Encoder layers
         x = self.layer1a_e(x)
         self.layer1a_e_crop = transforms.functional.center_crop(x, self.conv_op_image_size_decoder_layer2b)
         x = self.layer1b_e(x)
@@ -264,7 +244,7 @@ class SemanticSegmentation(nn.Module):
         x = self.layer4b_e(x)
         x = self.layer5a_e(x)
 
-        # Decoder
+        # Expansive/Decoder layers
         y = self.layer5_d(x)
         y = self.layer4a_d(torch.cat((y,self.layer4a_e_crop), 1))
         y = self.layer4b_d(y)
@@ -319,13 +299,11 @@ for epoch in range(no_epochs):
     
     if batch_idx < 10:
         mask_pred_segmnt_concate_RGB = torch.cat((masks, pred_segmnt.detach()), 2)
-        # mask_pred_segmnt_concate_RGB = torch.cat((mask_pred_segmnt_concate, mask_pred_segmnt_concate, mask_pred_segmnt_concate), 1)
         image_mask_pred_segmnt_concate_RGB = torch.cat((transforms.functional.resize(img=images, size = mask_dimn), mask_pred_segmnt_concate_RGB), 2)
         save_image(image_mask_pred_segmnt_concate_RGB, os.path.join(sample_dir, f'train_image_mask_pred_segmnt_concate-{epoch}-{batch_idx}.png'))
 
     # Compute loss.
     loss = criterion(pred_segmnt, masks)
-
     if epoch == 0 and first_pass == True:
       print(f'Initial {epoch} loss: ', loss.item())
       first_pass = False
@@ -367,10 +345,8 @@ for epoch in range(no_epochs):
         image_mask_pred_segmnt_concate_RGB = torch.cat((transforms.functional.resize(img=images, size = mask_dimn), mask_pred_segmnt_concate_RGB), 2)
         save_image(image_mask_pred_segmnt_concate_RGB, os.path.join(sample_dir, f'test_image_mask_pred_segmnt_concate-{epoch}-{batch_idx}.png'))
 
-
       # Compute test loss.
-      loss = criterion(pred_segmnt, masks)
-      
+      loss = criterion(pred_segmnt, masks)      
       total_loss_test += loss.item()
 
     print(f'Test Epoch:{epoch}, Average Test loss: {total_loss_test/no_batches_tst}')
@@ -388,6 +364,5 @@ for epoch in range(no_epochs):
   plt.ylabel('Loss')
   plt.show()
   plt.savefig(os.path.join(sample_dir, '_Loss.png'))
-
 
   model.train()
