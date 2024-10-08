@@ -1,8 +1,9 @@
 #  segmentation_OxfordIIITPet.py
-#     UNet architecture:
-#           Cobtracting/encoder layers no_of_ch: (3->64->128->256->512->1024)                   
-#           Expansive/decoder layers ch: (1024->512->256->256->128->64->3)
-#           All RelU non-linearity except Sigmoid for output layer
+#           Author: T M Feroz Ali
+#           Network architecture:UNet
+#               Contracting/encoder layers no_of_ch: (3->64->128->256->512->1024)                   
+#               Expansive/decoder layers ch: (1024->512->256->256->128->64->3)
+#               All RelU non-linearity except Sigmoid for output layer
 #           Use CE loss since 3 layer GT map (forground, background, boundary)
 #           Use He initialization for Linear layers followed by relu.
 #           Use Xavior initialization for Linear layers followed by Sigmoid (last layer)
